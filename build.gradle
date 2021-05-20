@@ -32,7 +32,7 @@ dependencies {
     compile "org.gluu:oxauth-client:$project.oxAuthVersion"
     compile "org.gluu:oxtrust-openid-auth-client:$project.oxAuthVersion"
     compile "org.gluu:oxcore-util:$project.oxCoreVersion"
-    compile "org.gluu:oxcore-persistence-ldap:$project.oxCoreVersion"
+    compile "org.gluu:gluu-orm-ldap:$project.oxCoreVersion"
     compile "org.gluu:oxcore-standalone:$project.oxCoreVersion"
     compile "org.gluu:oxcore-cache:$project.oxCoreVersion"
     compile "org.gluu:oxcore-script:$project.oxCoreVersion"
