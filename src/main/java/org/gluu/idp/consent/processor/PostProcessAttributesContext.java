@@ -1,8 +1,9 @@
 package org.gluu.idp.consent.processor;
 
 import java.io.Serializable;
+import java.util.Map;
 
-import net.shibboleth.idp.attribute.context.AttributeContext;
+import net.shibboleth.idp.attribute.IdPAttribute;
 
 /**
  * Post process attributes context
@@ -14,17 +15,10 @@ public class PostProcessAttributesContext implements Serializable {
 
 	private static final long serialVersionUID = 1822377169827670256L;
 
-	private AttributeContext attributeContext;
 	private GluuReleaseAttributesPostProcessor releaseAttributesPostProcessor;
+	private Map<String,IdPAttribute> idpAttributeMap;
 
-	public void setAttributeContext(AttributeContext attributeContext) {
-		this.attributeContext = attributeContext;
-	}
-
-	public AttributeContext getAttributeContext() {
-		return attributeContext;
-	}
-
+	
 	public void setAttributeReleaseAction(GluuReleaseAttributesPostProcessor releaseAttributesPostProcessor) {
 		this.releaseAttributesPostProcessor = releaseAttributesPostProcessor;
 	}
@@ -37,4 +31,13 @@ public class PostProcessAttributesContext implements Serializable {
 		this.releaseAttributesPostProcessor = releaseAttributesPostProcessor;
 	}
 
+	public void setIdpAttributeMap(Map<String,IdPAttribute> idpAttributeMap) {
+
+		this.idpAttributeMap = idpAttributeMap;
+	}
+
+	public Map<String,IdPAttribute> getIdpAttributeMap() {
+
+		return this.idpAttributeMap;
+	}
 }

@@ -1,7 +1,11 @@
 package org.gluu.idp.externalauth;
 
+import java.util.List;
+
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+
+import net.shibboleth.idp.attribute.IdPAttribute;
 
 import org.gluu.oxauth.client.auth.user.UserProfile;
 
@@ -14,6 +18,7 @@ import org.gluu.oxauth.client.auth.user.UserProfile;
  *
  * @author Yuriy Movchan
  * @version 0.1, 09/13/2018
+ * @version 0.2 , 06/09/2021
  */
 public interface OxAuthToShibTranslator {
     /**
@@ -25,5 +30,6 @@ public interface OxAuthToShibTranslator {
      * @param authenticationKey the authentication key
      * @throws Exception the exception
      */
-    void doTranslation(HttpServletRequest request, HttpServletResponse response, UserProfile userProfile, String authenticationKey) throws Exception;
+    void doTranslation(HttpServletRequest request, HttpServletResponse response, UserProfile userProfile, String authenticationKey,
+                        List<IdPAttribute> idpAttributes) throws Exception;
 }
