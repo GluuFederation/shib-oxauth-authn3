@@ -1,9 +1,15 @@
 package org.gluu.idp.externalauth;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+
+import net.shibboleth.idp.attribute.IdPAttribute;
+import net.shibboleth.idp.attribute.IdPAttributeValue;
+import net.shibboleth.idp.attribute.StringAttributeValue;
 
 import org.gluu.oxauth.client.auth.user.UserProfile;
 
@@ -21,13 +27,15 @@ public class TranslateAttributesContext implements Serializable {
 	private HttpServletResponse response;
 	private UserProfile userProfile;
 	private String authenticationKey;
+	private List<IdPAttribute> idpAttributes;
 
 	public TranslateAttributesContext(HttpServletRequest request, HttpServletResponse response, UserProfile userProfile,
-			String authenticationKey) {
+			String authenticationKey, List<IdPAttribute> idpAttributes) {
 		this.request = request;
 		this.response = response;
 		this.userProfile = userProfile;
 		this.authenticationKey = authenticationKey;
+		this.idpAttributes =  idpAttributes;
 	}
 
 	public HttpServletRequest getRequest() {
@@ -46,4 +54,27 @@ public class TranslateAttributesContext implements Serializable {
 		return authenticationKey;
 	}
 
+	public void addIdpAttribute(IdPAttribute idpAttribute) {
+
+		this.idpAttributes.add(idpAttribute);
+	}
+
+	public void addIdpAttribute(String id, List<IdPAttributeValue> values) {
+
+		IdPAttribute newAttribute = new IdPAttribute(id);
+		newAttribute.setValues(values);
+		this.idpAttributes.add(newAttribute);
+	}
+
+	public void addIdpStringAttribute(String id, String value) {
+
+		List<IdPAttributeValue> values = new ArrayList<IdPAttributeValue>();
+		values.add(new StringAttributeValue(value));
+		addIdpAttribute(id,values);
+	}
+
+	public List<IdPAttribute> getIdpAttributes() {
+
+		return this.idpAttributes;
+	}
 }
