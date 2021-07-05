@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.Date;
 import java.util.TimerTask;
+import java.util.UUID;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -106,6 +107,7 @@ public class GluuStorageService extends AbstractStorageService implements Storag
         LOG.debug("Creating new entry at {} for context={}, key={}, exp={}", cacheKey, context, key, expiry);
         try {
         	int ttl = getSystemExpiration(record.getExpiration());
+            LOG.debug("Create cache record for key={}, ttl={}", key, ttl);
         	cacheProvider.put(ttl, cacheKey, record);
         } catch (final Exception ex) {
             LOG.error("Failed to put object into cache, key: '{}'", cacheKey, ex);
@@ -202,6 +204,7 @@ public class GluuStorageService extends AbstractStorageService implements Storag
 
         try {
         	int ttl = getSystemExpiration(record.getExpiration());
+            LOG.debug("Update cache record for key={}, ttl={}", key, ttl);
         	cacheProvider.put(ttl, cacheKey, record);
         } catch (final Exception ex) {
             LOG.error("Failed to update object in cache, key: '{}'", cacheKey, ex);
@@ -348,8 +351,13 @@ public class GluuStorageService extends AbstractStorageService implements Storag
      */
     protected String lookupNamespace(final String context) throws IOException {
     	LOG.debug("GluuStorage: lookupNamespace");
-        try {
-            return (String) cacheProvider.get(memcachedKey(context));
+        
+    	final String cacheKey = memcachedKey(context);
+
+        LOG.trace("Lookup namespace with context={}, key={}", context, cacheKey);
+
+    	try {
+            return (String) cacheProvider.get(cacheKey);
         } catch (final Exception ex) {
             throw new IOException("Memcached operation failed", ex);
         }
@@ -367,20 +375,26 @@ public class GluuStorageService extends AbstractStorageService implements Storag
      */
     protected String createNamespace(final String context) throws IOException {
     	LOG.debug("GluuStorage: createNamespace");
-    	int maxIterations = 10;
+
+        LOG.trace("Create namespace with context={}", context);
+
+        int maxIterations = 10;
         String namespace =  null;
 
         boolean success = false;
         // Perform successive add operations until success to ensure unique namespace
         while (!success && (maxIterations-- >= 0)) {
-            namespace = CodecUtil.hex(ByteUtil.toBytes(System.currentTimeMillis()));
+            namespace = UUID.randomUUID().toString() + "_" + CodecUtil.hex(ByteUtil.toBytes(System.currentTimeMillis()));
+            LOG.trace("Create namespace with context={}, namespace={}", context, namespace);
             // Namespace values are safe for memcached keys
             try {
             	boolean foundNamespace = cacheProvider.hasKey(namespace);
             	if (foundNamespace) {
+                    LOG.trace("Namespace={} already exists", namespace);
             		// Find another one due to conflict
             		continue;
             	}
+                LOG.trace("Storing namespace={}, expiration={}", namespace, contextExpiration.getSeconds());
                 cacheProvider.put((int) contextExpiration.getSeconds(), namespace, context);
                 success = true;
             } catch (Exception ex) {}
@@ -391,7 +405,9 @@ public class GluuStorageService extends AbstractStorageService implements Storag
 
         // Create the reverse mapping to support looking up namespace by context name
         try {
-            cacheProvider.put((int) contextExpiration.getSeconds(), memcachedKey(context), namespace);
+        	final String cacheKey = memcachedKey(context);
+            LOG.trace("Storing reverse mapping for namespace={}, context={}, key={}, expiration={}", namespace, context, cacheKey, contextExpiration.getSeconds());
+            cacheProvider.put((int) contextExpiration.getSeconds(), cacheKey, namespace);
         } catch (Exception ex) {
             throw new IllegalStateException(context + " already exists");
         }
