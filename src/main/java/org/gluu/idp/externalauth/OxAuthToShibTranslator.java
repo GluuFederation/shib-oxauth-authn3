@@ -1,14 +1,5 @@
 package org.gluu.idp.externalauth;
 
-import java.util.List;
-
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
-import net.shibboleth.idp.attribute.IdPAttribute;
-
-import org.gluu.oxauth.client.auth.user.UserProfile;
-
 /**
  * This interface defines the public interface for a class that will translate the information from oxAuth to Shib. The translator
  * should only push details into the request and should NOT attempt to call
@@ -21,15 +12,11 @@ import org.gluu.oxauth.client.auth.user.UserProfile;
  * @version 0.2 , 06/09/2021
  */
 public interface OxAuthToShibTranslator {
+  
     /**
-     * Do the needed translation.
-     *
-     * @param request           The HttpServletRequest object
-     * @param response          The HttpServletResponse object
-     * @param userProfile       The oxAuth User Profile after getting id_token
-     * @param authenticationKey the authentication key
+     * Perform attribute translation 
+     * @param context            The TranslateAttributesContext object 
      * @throws Exception the exception
      */
-    void doTranslation(HttpServletRequest request, HttpServletResponse response, UserProfile userProfile, String authenticationKey,
-                        List<IdPAttribute> idpAttributes) throws Exception;
+    void doTranslation(TranslateAttributesContext context) throws Exception;
 }

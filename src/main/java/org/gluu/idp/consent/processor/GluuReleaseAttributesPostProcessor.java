@@ -6,7 +6,6 @@ import java.util.HashMap;
 import java.util.function.Function;
 
 import javax.annotation.Nonnull;
-import javax.servlet.http.HttpServletRequest;
 
 import org.gluu.idp.context.GluuScratchContext;
 import org.gluu.idp.externalauth.openid.conf.IdpConfigurationFactory;
@@ -25,8 +24,7 @@ import net.shibboleth.utilities.java.support.logic.Constraint;
 
 public class GluuReleaseAttributesPostProcessor extends AbstractProfileAction {
 
-	private final String IDP_TRANSLATED_ATTRIBUTES_KEY = "IDP_TRANSLATED_ATTRIBUTES";
-
+	
 	private final Logger LOG = LoggerFactory.getLogger(GluuReleaseAttributesPostProcessor.class);
 
 	private IdpConfigurationFactory configurationFactory;
@@ -58,7 +56,6 @@ public class GluuReleaseAttributesPostProcessor extends AbstractProfileAction {
 	 * @param profileRequestContext the current profile request context
 	 * @param interceptorContext    the current profile interceptor context
 	 */
-	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
 	protected void doExecute(@Nonnull final ProfileRequestContext profileRequestContext) {
 		// Execute default flow first

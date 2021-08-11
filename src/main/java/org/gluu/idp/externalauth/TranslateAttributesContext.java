@@ -11,6 +11,7 @@ import net.shibboleth.idp.attribute.IdPAttribute;
 import net.shibboleth.idp.attribute.IdPAttributeValue;
 import net.shibboleth.idp.attribute.StringAttributeValue;
 
+import org.gluu.idp.service.GluuAttributeMappingService;
 import org.gluu.oxauth.client.auth.user.UserProfile;
 
 /**
@@ -28,6 +29,7 @@ public class TranslateAttributesContext implements Serializable {
 	private UserProfile userProfile;
 	private String authenticationKey;
 	private List<IdPAttribute> idpAttributes;
+	private GluuAttributeMappingService gluuAttributeMappingService;
 
 	public TranslateAttributesContext(HttpServletRequest request, HttpServletResponse response, UserProfile userProfile,
 			String authenticationKey, List<IdPAttribute> idpAttributes) {
@@ -36,6 +38,7 @@ public class TranslateAttributesContext implements Serializable {
 		this.userProfile = userProfile;
 		this.authenticationKey = authenticationKey;
 		this.idpAttributes =  idpAttributes;
+		this.gluuAttributeMappingService = null;
 	}
 
 	public HttpServletRequest getRequest() {
@@ -54,6 +57,16 @@ public class TranslateAttributesContext implements Serializable {
 		return authenticationKey;
 	}
 
+	public GluuAttributeMappingService getGluuAttributeMappingService() {
+
+		return this.gluuAttributeMappingService;
+	}
+
+	public void setGluuAttributeMappingService(GluuAttributeMappingService gluuAttributeMappingService) {
+
+		this.gluuAttributeMappingService = gluuAttributeMappingService;
+	}
+	
 	public void addIdpAttribute(IdPAttribute idpAttribute) {
 
 		this.idpAttributes.add(idpAttribute);

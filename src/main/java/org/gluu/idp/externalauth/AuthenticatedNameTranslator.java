@@ -28,9 +28,9 @@ public class AuthenticatedNameTranslator implements OxAuthToShibTranslator {
     private final Logger logger = LoggerFactory.getLogger(AuthenticatedNameTranslator.class);
 
     @Override
-    public void doTranslation(HttpServletRequest request, HttpServletResponse response, UserProfile userProfile, String authenticationKey,
-                              List<IdPAttribute> idpAttributes) throws Exception {
+    public void doTranslation(TranslateAttributesContext context) throws Exception {
         
+        UserProfile userProfile = context.getUserProfile();
         if ((userProfile == null) || (userProfile.getId() == null)) {
             logger.error("No valid user profile or principal could be found to translate");
             return;
@@ -38,7 +38,7 @@ public class AuthenticatedNameTranslator implements OxAuthToShibTranslator {
 
         logger.debug("User profile found: '{}'", userProfile);
 
-        populateIdpAttributeList(userProfile.getAttributes(), idpAttributes);
+        populateIdpAttributeList(userProfile.getAttributes(), context);
         
     }
 
@@ -54,11 +54,15 @@ public class AuthenticatedNameTranslator implements OxAuthToShibTranslator {
 
     
 
-    public void populateIdpAttributeList(final Map<String,Object> openidAttributes, final List<IdPAttribute> idpAttributes) {
+    public void populateIdpAttributeList(final Map<String,Object> openidAttributes, TranslateAttributesContext context) {
+
+        final List<IdPAttribute> idpAttributes = context.getIdpAttributes();
 
         for(final Map.Entry<String, Object> entry: openidAttributes.entrySet()) {
 
-            final IdPAttribute attr = new IdPAttribute(entry.getKey());
+            String attributeName =  context.getGluuAttributeMappingService().getSaml2AttributeNameFromClaimName(entry.getKey());
+            
+            final IdPAttribute attr = new IdPAttribute((attributeName != null ? attributeName : entry.getKey()));
 
             final List<IdPAttributeValue> attributeValues = new ArrayList<IdPAttributeValue>();
             if(entry.getValue() instanceof Collection) {

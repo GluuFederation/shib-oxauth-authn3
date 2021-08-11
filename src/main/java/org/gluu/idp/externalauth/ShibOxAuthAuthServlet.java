@@ -29,11 +29,11 @@ import org.gluu.idp.context.GluuScratchContext;
 import org.gluu.idp.externalauth.openid.client.IdpAuthClient;
 import org.gluu.idp.script.service.IdpCustomScriptManager;
 import org.gluu.idp.script.service.external.IdpExternalScriptService;
+import org.gluu.idp.service.GluuAttributeMappingService;
 import org.gluu.oxauth.client.auth.principal.OpenIdCredentials;
 import org.gluu.oxauth.client.auth.user.UserProfile;
 import org.gluu.oxauth.model.exception.InvalidJwtException;
 import org.gluu.oxauth.model.jwt.Jwt;
-import org.opensaml.messaging.context.ScratchContext;
 import org.opensaml.profile.context.ProfileRequestContext;
 import org.opensaml.saml.saml2.core.AuthnContextClassRef;
 import org.opensaml.saml.saml2.core.AuthnRequest;
@@ -69,7 +69,6 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
     private final String OXAUTH_PARAM_ENTITY_ID = "entityId";
     private final String OXAUTH_PARAM_ISSUER_ID = "issuerId";
     private final String OXAUTH_ATTRIBIUTE_SEND_END_SESSION_REQUEST = "sendEndSession";
-    private final String IDP_TRANSLATED_ATTRIBUTES_KEY = "IDP_TRANSLATED_ATTRIBUTES";
 
     private IdpAuthClient authClient;
 
@@ -77,6 +76,7 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
 
 	private IdpCustomScriptManager customScriptManager;
 	private IdpExternalScriptService externalScriptService;
+    private GluuAttributeMappingService gluuAttributeMappingService;
 
     @Override
     public void init(final ServletConfig config) throws ServletException {
@@ -88,7 +88,8 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
 
         this.authClient = (IdpAuthClient) applicationContext.getBean("idpAuthClient");
         this.customScriptManager = (IdpCustomScriptManager) applicationContext.getBean("idpCustomScriptManager");
-
+        this.gluuAttributeMappingService = (GluuAttributeMappingService) applicationContext.getBean("gluuAttributeMappingService");
+       
         // Call custom script manager init to make sure that it initialized
     	this.customScriptManager.init();
     	this.externalScriptService = this.customScriptManager.getIdpExternalScriptService();
@@ -197,15 +198,16 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
               
                 List<IdPAttribute> idpAttributes = new ArrayList<IdPAttribute>();
                 boolean result = false;
+                TranslateAttributesContext translateAttributesContext = buildContext(request, response, userProfile, authenticationKey,idpAttributes);
                 if(this.externalScriptService.isEnabled()) {
-                    TranslateAttributesContext translateAttributesContext = buildContext(request, response, userProfile, authenticationKey,idpAttributes);
+
                     result = this.externalScriptService.executeExternalTranslateAttributesMethod(translateAttributesContext);
                 }
 
                 if(!result) {
                     LOG.debug("Using default translate attributes method");
                     for(final OxAuthToShibTranslator translator : translators) {
-                        translator.doTranslation(request, response, userProfile, authenticationKey, idpAttributes);
+                        translator.doTranslation(translateAttributesContext);
                     }
                 }
 
@@ -352,8 +354,9 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
 	private TranslateAttributesContext buildContext(HttpServletRequest request, HttpServletResponse response, UserProfile userProfile, 
                                                     String authenticationKey, List<IdPAttribute> idpAttributes) {
 
-		TranslateAttributesContext translateAttributesContext = new TranslateAttributesContext(request, response, userProfile, authenticationKey, idpAttributes);
-
+		TranslateAttributesContext translateAttributesContext = new TranslateAttributesContext(request, response, 
+                userProfile, authenticationKey, idpAttributes);
+        translateAttributesContext.setGluuAttributeMappingService(gluuAttributeMappingService);
 		return translateAttributesContext;
 	}
 
