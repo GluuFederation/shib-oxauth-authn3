@@ -1,5 +1,12 @@
 package org.gluu.idp.context;
 
+import javax.json.Json;
+import javax.json.JsonObject;
+import javax.json.JsonObjectBuilder;
+import javax.json.JsonWriter;
+
+import java.io.ByteArrayOutputStream;
+import java.io.UnsupportedEncodingException;
 import java.util.List;
 
 import org.opensaml.messaging.context.BaseContext;
@@ -16,7 +23,12 @@ import net.shibboleth.idp.attribute.IdPAttribute;
 public final class GluuScratchContext extends BaseContext{
     
     private List<IdPAttribute> idpAttributes;
+    private JsonObjectBuilder  httpParamObjBuilder;
 
+    public GluuScratchContext() {
+
+        this.httpParamObjBuilder = Json.createObjectBuilder();
+    }
 
     public List<IdPAttribute> getIdpAttributes() {
 
@@ -26,5 +38,28 @@ public final class GluuScratchContext extends BaseContext{
     public void setIdpAttributes(List<IdPAttribute> idpAttributes) {
 
         this.idpAttributes = idpAttributes;
+    }
+
+    public void addExtraHttpParameter(String parameter, String value) {
+        
+        this.httpParamObjBuilder.add(parameter,value);
+    }
+
+
+    public String getExtraHttpParameters() {
+
+        JsonObject obj = httpParamObjBuilder.build();
+        if(obj.isEmpty()) {
+            return null;
+        }
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        JsonWriter writer = Json.createWriter(stream);
+        writer.writeObject(obj);
+        writer.close();
+        try {
+            return stream.toString("UTF-8");
+        }catch(UnsupportedEncodingException e) {
+            return null;
+        }
     }
 }
