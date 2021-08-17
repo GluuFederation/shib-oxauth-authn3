@@ -1,6 +1,7 @@
 package org.gluu.idp.externalauth;
 
 import java.io.IOException;
+import java.net.URLEncoder;
 import java.security.Principal;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -68,6 +69,7 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
 
     private final String OXAUTH_PARAM_ENTITY_ID = "entityId";
     private final String OXAUTH_PARAM_ISSUER_ID = "issuerId";
+    private final String OXAUTH_PARAM_EXTRA_PARAMS = "extraParameters";
     private final String OXAUTH_ATTRIBIUTE_SEND_END_SESSION_REQUEST = "sendEndSession";
 
     private IdpAuthClient authClient;
@@ -85,7 +87,7 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
         ServletContext context = getServletContext();
 
         WebApplicationContext applicationContext = WebApplicationContextUtils.getWebApplicationContext(context);
-
+    
         this.authClient = (IdpAuthClient) applicationContext.getBean("idpAuthClient");
         this.customScriptManager = (IdpCustomScriptManager) applicationContext.getBean("idpCustomScriptManager");
         this.gluuAttributeMappingService = (GluuAttributeMappingService) applicationContext.getBean("gluuAttributeMappingService");
@@ -103,6 +105,7 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
     @Override
     protected void doGet(final HttpServletRequest request, final HttpServletResponse response) throws ServletException {
         try {
+
             final String requestUrl = request.getRequestURL().toString();
             LOG.trace("Get request to: '{}'", requestUrl);
 
@@ -151,7 +154,7 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
             // It's an authentication
             if (!authorizationResponse) {
                 LOG.debug("Initiating oxAuth login redirect");
-                startLoginRequest(request, response, force);
+                startLoginRequest(request, response, authenticationKey, force);
                 return;
             }
 
@@ -162,7 +165,7 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
                 LOG.error("The state in session and in request are not equals");
 
                 // Re-init login page
-                startLoginRequest(request, response, force);
+                startLoginRequest(request, response, authenticationKey, force);
                 return;
             }
 
@@ -231,7 +234,7 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
         }
     }
 
-    protected void startLoginRequest(final HttpServletRequest request, final HttpServletResponse response, final Boolean force) {
+    protected void startLoginRequest(final HttpServletRequest request, final HttpServletResponse response, final String authenticationKey, final Boolean force) {
         try {
             // Web context
             final WebContext context = new J2EContext(request, response);
@@ -243,6 +246,21 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
             final Map<String, String> customParameters = new HashMap<String, String>();
             final String relayingPartyId = request.getAttribute(ExternalAuthentication.RELYING_PARTY_PARAM).toString();
             customParameters.put(OXAUTH_PARAM_ENTITY_ID, relayingPartyId);
+            
+            try {
+
+                ProfileRequestContext prContext = ExternalAuthentication.getProfileRequestContext(authenticationKey, request);
+                GluuScratchContext gluuScratchContext = prContext.getSubcontext(GluuScratchContext.class);
+                if(gluuScratchContext != null) {
+                    String extra_http_params = gluuScratchContext.getExtraHttpParameters();
+                    if(extra_http_params != null &&  !extra_http_params.isEmpty()) {
+                        customParameters.put(OXAUTH_PARAM_EXTRA_PARAMS,URLEncoder.encode(extra_http_params,"UTF-8"));
+                    }
+                }
+            }catch(ExternalAuthenticationException e) {
+                LOG.debug("Could not set extra parameters for the request. Extra request parameters will not be available to oxAuth",e);
+            }
+
             
             try {
                 ProfileRequestContext prc = ExternalAuthentication.getProfileRequestContext(convId, request);
