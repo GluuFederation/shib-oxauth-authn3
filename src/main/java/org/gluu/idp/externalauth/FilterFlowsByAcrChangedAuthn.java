@@ -50,13 +50,9 @@ public class FilterFlowsByAcrChangedAuthn extends AbstractAuthenticationAction {
 	}
 
 	protected void doExecute(ProfileRequestContext profileRequestContext, AuthenticationContext authenticationContext) {
-		Map potentialFlows = authenticationContext.getPotentialFlows();
+		authenticationContext.getActiveResults().clear();
+		LOG.info("{} Removed all active resultsto force authentication", getLogPrefix());
 
-		if (potentialFlows.size() == 0) {
-			LOG.info("{} No potential authentication flows remain after filtering", getLogPrefix());
-		} else {
-			LOG.debug("{} Potential authentication flows left after filtering: {}", getLogPrefix(), potentialFlows);
-		}
 	}
 
 }
