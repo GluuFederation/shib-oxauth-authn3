@@ -65,7 +65,6 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
     private final static String OXAUTH_PARAM_ENTITY_ID = "entityId";
     private final static String OXAUTH_PARAM_ISSUER_ID = "issuerId";
     private final static String OXAUTH_ATTRIBIUTE_SEND_END_SESSION_REQUEST = "sendEndSession";
-    public final static String OXAUTH_ACR_REQUESTED = "acr_requested";
     public final static String OXAUTH_ACR_USED = "acr_used";
 
     private IdpAuthClient authClient;
@@ -253,13 +252,6 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
                         String acrs = authnContext.getAuthnContextClassRefs().stream()
                             .map(AuthnContextClassRef::getAuthnContextClassRef).collect(Collectors.joining(" "));
                         customParameters.put("acr_values", acrs);
-
-                        Function<ProfileRequestContext, AuthenticationContext> authenticationContextLookupStrategy = new ChildContextLookup<>(AuthenticationContext.class);
-                        final AuthenticationContext authenticationContext = authenticationContextLookupStrategy.apply(profileRequestContext);
-                        if (authenticationContext != null) {
-                        	authenticationContext.getAuthenticationStateMap().put(OXAUTH_ACR_REQUESTED, acrs);
-    	                    LOG.debug("Requested ACR method: {}", acrs);
-                        }
                     }
                 }
             } catch (Exception e) {
