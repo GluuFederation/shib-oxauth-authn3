@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.servlet.RequestDispatcher;
@@ -27,6 +28,8 @@ import org.gluu.oxauth.client.auth.principal.OpenIdCredentials;
 import org.gluu.oxauth.client.auth.user.UserProfile;
 import org.gluu.oxauth.model.exception.InvalidJwtException;
 import org.gluu.oxauth.model.jwt.Jwt;
+import org.gluu.util.StringHelper;
+import org.opensaml.messaging.context.navigate.ChildContextLookup;
 import org.opensaml.profile.context.ProfileRequestContext;
 import org.opensaml.saml.saml2.core.AuthnContextClassRef;
 import org.opensaml.saml.saml2.core.AuthnRequest;
@@ -43,6 +46,7 @@ import org.springframework.web.context.support.WebApplicationContextUtils;
 import net.shibboleth.idp.authn.AuthnEventIds;
 import net.shibboleth.idp.authn.ExternalAuthentication;
 import net.shibboleth.idp.authn.ExternalAuthenticationException;
+import net.shibboleth.idp.authn.context.AuthenticationContext;
 
 /**
  * A Servlet that validates the oxAuth code and then pushes the authenticated
@@ -58,9 +62,11 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
 
     private final Logger LOG = LoggerFactory.getLogger(ShibOxAuthAuthServlet.class);
 
-    private final String OXAUTH_PARAM_ENTITY_ID = "entityId";
-    private final String OXAUTH_PARAM_ISSUER_ID = "issuerId";
-    private final String OXAUTH_ATTRIBIUTE_SEND_END_SESSION_REQUEST = "sendEndSession";
+    private final static String OXAUTH_PARAM_ENTITY_ID = "entityId";
+    private final static String OXAUTH_PARAM_ISSUER_ID = "issuerId";
+    private final static String OXAUTH_ATTRIBIUTE_SEND_END_SESSION_REQUEST = "sendEndSession";
+    public final static String OXAUTH_ACR_REQUESTED = "acr_requested";
+    public final static String OXAUTH_ACR_USED = "acr_used";
 
     private IdpAuthClient authClient;
 
@@ -199,6 +205,19 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
                     }
         		}
 
+                ProfileRequestContext profileRequestContext = ExternalAuthentication.getProfileRequestContext(authenticationKey, request);
+
+        		Function<ProfileRequestContext, AuthenticationContext> authenticationContextLookupStrategy = new ChildContextLookup<>(AuthenticationContext.class);
+                final AuthenticationContext authenticationContext = authenticationContextLookupStrategy.apply(profileRequestContext);
+                if (authenticationContext != null) {
+                	String usedAcr = userProfile.getUsedAcr();
+                	if (StringHelper.isEmpty(usedAcr)) {
+	                    LOG.debug("ACR method is undefined");
+                	} else {
+                		authenticationContext.getAuthenticationStateMap().put(OXAUTH_ACR_USED, usedAcr);
+	                    LOG.debug("Used ACR method: {}", userProfile);
+                	}
+                }
             }
         } catch (final Exception ex) {
             LOG.error("Token validation failed, returning InvalidToken", ex);
@@ -222,8 +241,8 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
             customParameters.put(OXAUTH_PARAM_ENTITY_ID, relayingPartyId);
             
             try {
-                ProfileRequestContext prc = ExternalAuthentication.getProfileRequestContext(convId, request);
-                AuthnRequest authnRequest = (AuthnRequest) prc.getInboundMessageContext().getMessage();
+                ProfileRequestContext profileRequestContext = ExternalAuthentication.getProfileRequestContext(convId, request);
+                AuthnRequest authnRequest = (AuthnRequest) profileRequestContext.getInboundMessageContext().getMessage();
                 if (authnRequest != null) {
                     RequestedAuthnContext authnContext = authnRequest.getRequestedAuthnContext();
                     Issuer issuer = authnRequest.getIssuer();
@@ -234,6 +253,13 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
                         String acrs = authnContext.getAuthnContextClassRefs().stream()
                             .map(AuthnContextClassRef::getAuthnContextClassRef).collect(Collectors.joining(" "));
                         customParameters.put("acr_values", acrs);
+
+                        Function<ProfileRequestContext, AuthenticationContext> authenticationContextLookupStrategy = new ChildContextLookup<>(AuthenticationContext.class);
+                        final AuthenticationContext authenticationContext = authenticationContextLookupStrategy.apply(profileRequestContext);
+                        if (authenticationContext != null) {
+                        	authenticationContext.getAuthenticationStateMap().put(OXAUTH_ACR_REQUESTED, acrs);
+    	                    LOG.debug("Requested ACR method: {}", acrs);
+                        }
                     }
                 }
             } catch (Exception e) {
