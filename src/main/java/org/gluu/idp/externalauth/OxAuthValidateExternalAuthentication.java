@@ -9,6 +9,9 @@ import net.shibboleth.idp.authn.AuthenticationResult;
 import net.shibboleth.idp.authn.context.AuthenticationContext;
 import net.shibboleth.idp.authn.impl.ValidateExternalAuthentication;
 
+/**
+ * @author Yuriy Movchan on 09/13/2021
+ */
 public class OxAuthValidateExternalAuthentication extends ValidateExternalAuthentication {
 
 	/** {@inheritDoc} */
