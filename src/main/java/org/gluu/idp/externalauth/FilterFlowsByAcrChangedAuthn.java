@@ -1,17 +1,13 @@
 package org.gluu.idp.externalauth;
 
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.gluu.util.StringHelper;
-import org.opensaml.messaging.context.navigate.ChildContextLookup;
 import org.opensaml.profile.context.ProfileRequestContext;
 import org.opensaml.saml.saml2.core.AuthnContextClassRef;
 import org.opensaml.saml.saml2.core.AuthnRequest;
-import org.opensaml.saml.saml2.core.Issuer;
 import org.opensaml.saml.saml2.core.RequestedAuthnContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,10 +16,15 @@ import net.shibboleth.idp.authn.AbstractAuthenticationAction;
 import net.shibboleth.idp.authn.AuthenticationResult;
 import net.shibboleth.idp.authn.context.AuthenticationContext;
 
+/**
+ * @author Yuriy Movchan on 09/13/2021
+ */
 public class FilterFlowsByAcrChangedAuthn extends AbstractAuthenticationAction {
 
 	private static final String OX_AUTH_FLOW_ID = "authn/oxAuth";
 	private final Logger LOG = LoggerFactory.getLogger(FilterFlowsByAcrChangedAuthn.class);
+	
+	private boolean disabled = false;
 
 	public FilterFlowsByAcrChangedAuthn() {
 	}
@@ -31,6 +32,10 @@ public class FilterFlowsByAcrChangedAuthn extends AbstractAuthenticationAction {
 	protected boolean doPreExecute(ProfileRequestContext profileRequestContext,
 			AuthenticationContext authenticationContext) {
 		if (!super.doPreExecute(profileRequestContext, authenticationContext)) {
+			return false;
+		}
+		
+		if (disabled) {
 			return false;
 		}
 		
@@ -44,20 +49,18 @@ public class FilterFlowsByAcrChangedAuthn extends AbstractAuthenticationAction {
 		String usedAcr = authenticationResult.getAdditionalData().get(ShibOxAuthAuthServlet.OXAUTH_ACR_USED);
 
 		List<String> requestedAcrs = determineAcrs(profileRequestContext);
+		LOG.trace("{} Used ACR: {}, requested ACRs: {}", getLogPrefix(), usedAcr, requestedAcrs);
 		
-		String requestedAcr = null;
 		if ((requestedAcrs != null) && (requestedAcrs.size() > 0)) {
-			requestedAcr = requestedAcrs.get(0);
+			for (String requestedAcr : requestedAcrs) {
+				if (StringHelper.equals(usedAcr, requestedAcr)) {
+					LOG.debug("{} Used and requested ACR are the same: {}, nothing to do", getLogPrefix(), usedAcr);
+					return false;
+				}
+			}
 		}
 
-		LOG.trace("{} Used ACR: {}, requested ACR: {}", getLogPrefix(), usedAcr, requestedAcr);
-
-		if (StringHelper.equals(usedAcr, requestedAcr)) {
-			LOG.debug("{} Used and requested ACR is the same: {}, nothing to do", getLogPrefix(), usedAcr);
-			return false;
-		}
-
-		LOG.debug("{} Force to create new AuthZ request with new ACR: {}, nothing to do", getLogPrefix(), requestedAcr);
+		LOG.debug("{} Force to create new AuthZ request with new ACRs: {}, nothing to do", getLogPrefix(), requestedAcrs);
 		return true;
 	}
 	
@@ -78,8 +81,15 @@ public class FilterFlowsByAcrChangedAuthn extends AbstractAuthenticationAction {
 
 	protected void doExecute(ProfileRequestContext profileRequestContext, AuthenticationContext authenticationContext) {
 		authenticationContext.getActiveResults().clear();
-		LOG.info("{} Removed all active resultsto force authentication", getLogPrefix());
+		LOG.info("{} Removed all active results to force authentication", getLogPrefix());
+	}
 
+	public boolean isDisabled() {
+		return disabled;
+	}
+
+	public void setDisabled(boolean disabled) {
+		this.disabled = disabled;
 	}
 
 }
