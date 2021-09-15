@@ -47,13 +47,14 @@ public class FilterFlowsByAcrChangedAuthn extends AbstractAuthenticationAction {
 
 		AuthenticationResult authenticationResult = authenticationContext.getActiveResults().get(OX_AUTH_FLOW_ID);
 		String usedAcr = authenticationResult.getAdditionalData().get(ShibOxAuthAuthServlet.OXAUTH_ACR_USED);
+		String previousRequestedAcr = authenticationResult.getAdditionalData().get(ShibOxAuthAuthServlet.OXAUTH_ACR_REQUESTED);
 
 		List<String> requestedAcrs = determineAcrs(profileRequestContext);
-		LOG.trace("{} Used ACR: {}, requested ACRs: {}", getLogPrefix(), usedAcr, requestedAcrs);
+		LOG.trace("{} Used ACR: {}:{}, requested ACRs: {}", getLogPrefix(), usedAcr, previousRequestedAcr, requestedAcrs);
 		
 		if ((requestedAcrs != null) && (requestedAcrs.size() > 0)) {
 			for (String requestedAcr : requestedAcrs) {
-				if (StringHelper.equals(usedAcr, requestedAcr)) {
+				if (StringHelper.equals(usedAcr, requestedAcr) || StringHelper.equals(previousRequestedAcr, requestedAcr)) {
 					LOG.debug("{} Used and requested ACR are the same: {}, nothing to do", getLogPrefix(), usedAcr);
 					return false;
 				}
@@ -80,8 +81,10 @@ public class FilterFlowsByAcrChangedAuthn extends AbstractAuthenticationAction {
 	}
 
 	protected void doExecute(ProfileRequestContext profileRequestContext, AuthenticationContext authenticationContext) {
-		authenticationContext.getActiveResults().clear();
-		LOG.info("{} Removed all active results to force authentication", getLogPrefix());
+		if (!disabled) {
+			authenticationContext.getActiveResults().clear();
+			LOG.info("{} Removed all active results to force authentication", getLogPrefix());
+		}
 	}
 
 	public boolean isDisabled() {
