@@ -25,6 +25,12 @@ public class OxAuthValidateExternalAuthentication extends ValidateExternalAuthen
 			final AuthenticationResult result = authenticationContext.getAuthenticationResult();
 			result.getAdditionalData().put(ShibOxAuthAuthServlet.OXAUTH_ACR_USED, StringHelper.toString(usedAcr));
 		}
+
+		Object requestedAcr = authenticationContext.getAuthenticationStateMap().get(ShibOxAuthAuthServlet.OXAUTH_ACR_REQUESTED);
+		if (StringHelper.isNotEmptyString(requestedAcr)) {
+			final AuthenticationResult result = authenticationContext.getAuthenticationResult();
+			result.getAdditionalData().put(ShibOxAuthAuthServlet.OXAUTH_ACR_REQUESTED, StringHelper.toString(requestedAcr));
+		}
 	}
 
 }
