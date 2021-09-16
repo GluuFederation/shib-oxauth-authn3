@@ -24,7 +24,7 @@ public class FilterFlowsByAcrChangedAuthn extends AbstractAuthenticationAction {
 	private static final String OX_AUTH_FLOW_ID = "authn/oxAuth";
 	private final Logger LOG = LoggerFactory.getLogger(FilterFlowsByAcrChangedAuthn.class);
 	
-	private boolean disabled = false;
+	private boolean disabledAcrCheck = false;
 
 	public FilterFlowsByAcrChangedAuthn() {
 	}
@@ -35,7 +35,7 @@ public class FilterFlowsByAcrChangedAuthn extends AbstractAuthenticationAction {
 			return false;
 		}
 		
-		if (disabled) {
+		if (disabledAcrCheck) {
 			return false;
 		}
 		
@@ -84,18 +84,18 @@ public class FilterFlowsByAcrChangedAuthn extends AbstractAuthenticationAction {
 	}
 
 	protected void doExecute(ProfileRequestContext profileRequestContext, AuthenticationContext authenticationContext) {
-		if (!disabled) {
+		if (!disabledAcrCheck) {
 			authenticationContext.getActiveResults().clear();
 			LOG.info("{} Removed all active results to force authentication", getLogPrefix());
 		}
 	}
 
-	public boolean isDisabled() {
-		return disabled;
+	public boolean isDisabledAcrCheck() {
+		return disabledAcrCheck;
 	}
 
-	public void setDisabled(boolean disabled) {
-		this.disabled = disabled;
+	public void setDisabledAcrCheck(boolean disabledAcrCheck) {
+		this.disabledAcrCheck = disabledAcrCheck;
 	}
 
 }
