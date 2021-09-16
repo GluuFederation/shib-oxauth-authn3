@@ -50,14 +50,17 @@ public class FilterFlowsByAcrChangedAuthn extends AbstractAuthenticationAction {
 		String previousRequestedAcr = authenticationResult.getAdditionalData().get(ShibOxAuthAuthServlet.OXAUTH_ACR_REQUESTED);
 
 		List<String> requestedAcrs = determineAcrs(profileRequestContext);
-		LOG.trace("{} Used ACR: {}:{}, requested ACRs: {}", getLogPrefix(), usedAcr, previousRequestedAcr, requestedAcrs);
+		LOG.debug("{} Used ACR: {}:{}, requested ACRs: {}", getLogPrefix(), usedAcr, previousRequestedAcr, requestedAcrs);
 		
-		if ((requestedAcrs != null) && (requestedAcrs.size() > 0)) {
-			for (String requestedAcr : requestedAcrs) {
-				if (StringHelper.equals(usedAcr, requestedAcr) || StringHelper.equals(previousRequestedAcr, requestedAcr)) {
-					LOG.debug("{} Used and requested ACR are the same: {}, nothing to do", getLogPrefix(), usedAcr);
-					return false;
-				}
+		if ((requestedAcrs == null) || (requestedAcrs.size() == 0)) {
+			LOG.debug("{} There is no requested ACRs , nothing to do", getLogPrefix());
+			return false;
+		}
+		
+		for (String requestedAcr : requestedAcrs) {
+			if (StringHelper.equals(usedAcr, requestedAcr) || StringHelper.equals(previousRequestedAcr, requestedAcr)) {
+				LOG.debug("{} Used and requested ACR are the same: {}, nothing to do", getLogPrefix(), usedAcr);
+				return false;
 			}
 		}
 
