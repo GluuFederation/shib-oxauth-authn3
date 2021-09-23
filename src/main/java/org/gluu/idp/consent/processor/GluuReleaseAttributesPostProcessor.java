@@ -63,6 +63,11 @@ public class GluuReleaseAttributesPostProcessor extends AbstractProfileAction {
 		super.doExecute(profileRequestContext);
 		
 		AttributeContext attrCtx = getAttributeContext(profileRequestContext);
+		if(attrCtx == null) {
+			LOG.debug("No attribute context found. No attribute to release");
+			return;
+		}
+		
 		Map<String,IdPAttribute> idpAttributeMap = new HashMap<String,IdPAttribute>(attrCtx.getIdPAttributes());
 
 		GluuScratchContext gluuScratchContext = profileRequestContext.getSubcontext(GluuScratchContext.class);
