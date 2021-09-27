@@ -1,8 +1,10 @@
 package org.gluu.idp.externalauth;
 
 import java.io.IOException;
+import java.security.Principal;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -47,6 +49,9 @@ import net.shibboleth.idp.authn.AuthnEventIds;
 import net.shibboleth.idp.authn.ExternalAuthentication;
 import net.shibboleth.idp.authn.ExternalAuthenticationException;
 import net.shibboleth.idp.authn.context.AuthenticationContext;
+import net.shibboleth.idp.profile.config.ProfileConfiguration;
+import net.shibboleth.idp.profile.context.RelyingPartyContext;
+import net.shibboleth.idp.saml.saml2.profile.config.BrowserSSOProfileConfiguration;
 
 /**
  * A Servlet that validates the oxAuth code and then pushes the authenticated
@@ -249,9 +254,24 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
                     if (issuer != null) {
                     	customParameters.put(OXAUTH_PARAM_ISSUER_ID, issuer.getValue());
                     }
-                    if (null != authnContext) {
-                        String acrs = authnContext.getAuthnContextClassRefs().stream()
-                            .map(AuthnContextClassRef::getAuthnContextClassRef).collect(Collectors.joining(" "));
+                    String acrs = null;
+                    if (authnContext == null) {
+                        Function<ProfileRequestContext, RelyingPartyContext> authenticationContextLookupStrategy = new ChildContextLookup<>(RelyingPartyContext.class);
+                        final RelyingPartyContext relyingPartyContext = authenticationContextLookupStrategy.apply(profileRequestContext);
+                        if (relyingPartyContext != null) {
+                        	ProfileConfiguration profileConfiguration = relyingPartyContext.getProfileConfig();
+                        	if (profileConfiguration instanceof BrowserSSOProfileConfiguration) {
+                        		List<Principal> principals = ((BrowserSSOProfileConfiguration) profileConfiguration).getDefaultAuthenticationMethods(profileRequestContext);
+                                acrs = principals.stream()
+                                        .map(Principal::getName).collect(Collectors.joining(" "));
+                        	}
+                        }
+                    } else {
+                        acrs = authnContext.getAuthnContextClassRefs().stream()
+                                .map(AuthnContextClassRef::getAuthnContextClassRef).collect(Collectors.joining(" "));
+                    }
+                    
+                    if (StringHelper.isNotEmpty(acrs)) {
                         customParameters.put("acr_values", acrs);
 
                         Function<ProfileRequestContext, AuthenticationContext> authenticationContextLookupStrategy = new ChildContextLookup<>(AuthenticationContext.class);

@@ -1,10 +1,13 @@
 package org.gluu.idp.externalauth;
 
+import java.security.Principal;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.gluu.util.StringHelper;
+import org.opensaml.messaging.context.navigate.ChildContextLookup;
 import org.opensaml.profile.context.ProfileRequestContext;
 import org.opensaml.saml.saml2.core.AuthnContextClassRef;
 import org.opensaml.saml.saml2.core.AuthnRequest;
@@ -15,6 +18,9 @@ import org.slf4j.LoggerFactory;
 import net.shibboleth.idp.authn.AbstractAuthenticationAction;
 import net.shibboleth.idp.authn.AuthenticationResult;
 import net.shibboleth.idp.authn.context.AuthenticationContext;
+import net.shibboleth.idp.profile.config.ProfileConfiguration;
+import net.shibboleth.idp.profile.context.RelyingPartyContext;
+import net.shibboleth.idp.saml.saml2.profile.config.BrowserSSOProfileConfiguration;
 
 /**
  * @author Yuriy Movchan on 09/13/2021
@@ -70,17 +76,29 @@ public class FilterFlowsByAcrChangedAuthn extends AbstractAuthenticationAction {
 	
 	protected List<String> determineAcrs(ProfileRequestContext profileRequestContext) {
         AuthnRequest authnRequest = (AuthnRequest) profileRequestContext.getInboundMessageContext().getMessage();
-        if (authnRequest != null) {
-            RequestedAuthnContext authnContext = authnRequest.getRequestedAuthnContext();
-            if (authnContext != null) {
-                List<String> acrs = authnContext.getAuthnContextClassRefs().stream()
-                    .map(AuthnContextClassRef::getAuthnContextClassRef).collect(Collectors.toList());
-                
-                return acrs;
-            }
+        if (authnRequest == null) {
+        	return null;
         }
         
-        return null;
+        List<String> acrs = null;
+        RequestedAuthnContext authnContext = authnRequest.getRequestedAuthnContext();
+        if (authnContext == null) {
+            Function<ProfileRequestContext, RelyingPartyContext> authenticationContextLookupStrategy = new ChildContextLookup<>(RelyingPartyContext.class);
+            final RelyingPartyContext relyingPartyContext = authenticationContextLookupStrategy.apply(profileRequestContext);
+            if (relyingPartyContext != null) {
+            	ProfileConfiguration profileConfiguration = relyingPartyContext.getProfileConfig();
+            	if (profileConfiguration instanceof BrowserSSOProfileConfiguration) {
+            		List<Principal> principals = ((BrowserSSOProfileConfiguration) profileConfiguration).getDefaultAuthenticationMethods(profileRequestContext);
+                    acrs = principals.stream()
+                            .map(Principal::getName).collect(Collectors.toList());
+            	}
+            }
+        } else {
+            acrs = authnContext.getAuthnContextClassRefs().stream()
+                .map(AuthnContextClassRef::getAuthnContextClassRef).collect(Collectors.toList());
+        }
+        
+        return acrs;
 	}
 
 	protected void doExecute(ProfileRequestContext profileRequestContext, AuthenticationContext authenticationContext) {
