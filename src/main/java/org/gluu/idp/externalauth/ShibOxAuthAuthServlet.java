@@ -1,12 +1,20 @@
 package org.gluu.idp.externalauth;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.security.Principal;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Collections;
 
+import javax.security.auth.Subject;
 import javax.servlet.RequestDispatcher;
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletContext;
@@ -20,13 +28,17 @@ import javax.servlet.http.HttpServletResponse;
 import org.apache.commons.lang.StringUtils;
 import org.gluu.context.J2EContext;
 import org.gluu.context.WebContext;
+import org.gluu.idp.context.GluuScratchContext;
 import org.gluu.idp.externalauth.openid.client.IdpAuthClient;
 import org.gluu.idp.script.service.IdpCustomScriptManager;
 import org.gluu.idp.script.service.external.IdpExternalScriptService;
+import org.gluu.idp.service.GluuAttributeMappingService;
 import org.gluu.oxauth.client.auth.principal.OpenIdCredentials;
 import org.gluu.oxauth.client.auth.user.UserProfile;
 import org.gluu.oxauth.model.exception.InvalidJwtException;
 import org.gluu.oxauth.model.jwt.Jwt;
+import org.gluu.util.StringHelper;
+import org.opensaml.messaging.context.navigate.ChildContextLookup;
 import org.opensaml.profile.context.ProfileRequestContext;
 import org.opensaml.saml.saml2.core.AuthnContextClassRef;
 import org.opensaml.saml.saml2.core.AuthnRequest;
@@ -40,9 +52,15 @@ import org.springframework.core.env.Environment;
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.context.support.WebApplicationContextUtils;
 
+import net.shibboleth.idp.attribute.IdPAttribute;
 import net.shibboleth.idp.authn.AuthnEventIds;
 import net.shibboleth.idp.authn.ExternalAuthentication;
 import net.shibboleth.idp.authn.ExternalAuthenticationException;
+import net.shibboleth.idp.authn.principal.UsernamePrincipal;
+import net.shibboleth.idp.authn.context.AuthenticationContext;
+import net.shibboleth.idp.profile.config.ProfileConfiguration;
+import net.shibboleth.idp.profile.context.RelyingPartyContext;
+import net.shibboleth.idp.saml.saml2.profile.config.BrowserSSOProfileConfiguration;
 
 /**
  * A Servlet that validates the oxAuth code and then pushes the authenticated
@@ -60,7 +78,11 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
 
     private final String OXAUTH_PARAM_ENTITY_ID = "entityId";
     private final String OXAUTH_PARAM_ISSUER_ID = "issuerId";
+    private final String OXAUTH_PARAM_EXTRA_PARAMS = "extraParameters";
     private final String OXAUTH_ATTRIBIUTE_SEND_END_SESSION_REQUEST = "sendEndSession";
+
+    public final static String OXAUTH_ACR_USED = "acr_used";
+    public final static String OXAUTH_ACR_REQUESTED = "acr_requested";
 
     private IdpAuthClient authClient;
 
@@ -68,6 +90,7 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
 
 	private IdpCustomScriptManager customScriptManager;
 	private IdpExternalScriptService externalScriptService;
+    private GluuAttributeMappingService gluuAttributeMappingService;
 
     @Override
     public void init(final ServletConfig config) throws ServletException {
@@ -76,10 +99,11 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
         ServletContext context = getServletContext();
 
         WebApplicationContext applicationContext = WebApplicationContextUtils.getWebApplicationContext(context);
-
+    
         this.authClient = (IdpAuthClient) applicationContext.getBean("idpAuthClient");
         this.customScriptManager = (IdpCustomScriptManager) applicationContext.getBean("idpCustomScriptManager");
-
+        this.gluuAttributeMappingService = (GluuAttributeMappingService) applicationContext.getBean("gluuAttributeMappingService");
+       
         // Call custom script manager init to make sure that it initialized
     	this.customScriptManager.init();
     	this.externalScriptService = this.customScriptManager.getIdpExternalScriptService();
@@ -93,6 +117,7 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
     @Override
     protected void doGet(final HttpServletRequest request, final HttpServletResponse response) throws ServletException {
         try {
+
             final String requestUrl = request.getRequestURL().toString();
             LOG.trace("Get request to: '{}'", requestUrl);
 
@@ -141,7 +166,7 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
             // It's an authentication
             if (!authorizationResponse) {
                 LOG.debug("Initiating oxAuth login redirect");
-                startLoginRequest(request, response, force);
+                startLoginRequest(request, response, authenticationKey, force);
                 return;
             }
 
@@ -152,7 +177,7 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
                 LOG.error("The state in session and in request are not equals");
 
                 // Re-init login page
-                startLoginRequest(request, response, force);
+                startLoginRequest(request, response, authenticationKey, force);
                 return;
             }
 
@@ -185,20 +210,47 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
                 request.setAttribute(ExternalAuthentication.AUTHENTICATION_ERROR_KEY, "InvalidToken");
             } else {
         		// Return if script(s) not exists or invalid
-            	boolean result = false;
-        		if (this.externalScriptService.isEnabled()) {
-        			TranslateAttributesContext translateAttributesContext = buildContext(request, response, userProfile, authenticationKey);
-        			result = this.externalScriptService.executeExternalTranslateAttributesMethod(translateAttributesContext);
-        		}
-        		
-        		if (!result) {
-        			LOG.trace("Using default translate attributes method");
+              
+                List<IdPAttribute> idpAttributes = new ArrayList<IdPAttribute>();
+                boolean result = false;
+                TranslateAttributesContext translateAttributesContext = buildContext(request, response, userProfile, authenticationKey,idpAttributes);
+                if(this.externalScriptService.isEnabled()) {
 
-        			for (final OxAuthToShibTranslator translator : translators) {
-                        translator.doTranslation(request, response, userProfile, authenticationKey);
+                    result = this.externalScriptService.executeExternalTranslateAttributesMethod(translateAttributesContext);
+                }
+
+                if(!result) {
+                    LOG.debug("Using default translate attributes method");
+                    for(final OxAuthToShibTranslator translator : translators) {
+                        translator.doTranslation(translateAttributesContext);
                     }
-        		}
+                }
 
+                if(!idpAttributes.isEmpty()) {
+                    LOG.debug("Storing generated idp attributes");
+                    ProfileRequestContext prContext = ExternalAuthentication.getProfileRequestContext(authenticationKey, request);
+                    GluuScratchContext gluuScratchContext = prContext.getSubcontext(GluuScratchContext.class,true);
+                    gluuScratchContext.setIdpAttributes(idpAttributes);
+                }
+
+                LOG.debug("Created an IdP subject instance with principals for {} ", userProfile.getId());
+                final Set<Principal> userPrincipals = new HashSet<Principal>();
+                userPrincipals.add(new UsernamePrincipal(userProfile.getId()));
+                request.setAttribute(ExternalAuthentication.SUBJECT_KEY, new Subject(false, userPrincipals,Collections.emptySet(),Collections.emptySet()));
+
+                ProfileRequestContext profileRequestContext = ExternalAuthentication.getProfileRequestContext(authenticationKey, request);
+
+                Function<ProfileRequestContext, AuthenticationContext> authenticationContextLookupStrategy = new ChildContextLookup<>(AuthenticationContext.class);
+                final AuthenticationContext authenticationContext = authenticationContextLookupStrategy.apply(profileRequestContext);
+                if (authenticationContext != null) {
+                	String usedAcr = userProfile.getUsedAcr();
+                	if (StringHelper.isEmpty(usedAcr)) {
+	                    LOG.debug("ACR method is undefined");
+                	} else {
+                		authenticationContext.getAuthenticationStateMap().put(OXAUTH_ACR_USED, usedAcr);
+	                    LOG.debug("Used ACR method: {}", userProfile);
+                	}
+                }
             }
         } catch (final Exception ex) {
             LOG.error("Token validation failed, returning InvalidToken", ex);
@@ -208,7 +260,7 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
         }
     }
 
-    protected void startLoginRequest(final HttpServletRequest request, final HttpServletResponse response, final Boolean force) {
+    protected void startLoginRequest(final HttpServletRequest request, final HttpServletResponse response, final String authenticationKey, final Boolean force) {
         try {
             // Web context
             final WebContext context = new J2EContext(request, response);
@@ -220,20 +272,57 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
             final Map<String, String> customParameters = new HashMap<String, String>();
             final String relayingPartyId = request.getAttribute(ExternalAuthentication.RELYING_PARTY_PARAM).toString();
             customParameters.put(OXAUTH_PARAM_ENTITY_ID, relayingPartyId);
+             
+            try {
+
+                ProfileRequestContext prContext = ExternalAuthentication.getProfileRequestContext(authenticationKey, request);
+                GluuScratchContext gluuScratchContext = prContext.getSubcontext(GluuScratchContext.class);
+                if(gluuScratchContext != null) {
+                    String extra_http_params = gluuScratchContext.getExtraHttpParameters();
+                    if(extra_http_params != null &&  !extra_http_params.isEmpty()) {
+                        customParameters.put(OXAUTH_PARAM_EXTRA_PARAMS,URLEncoder.encode(extra_http_params,"UTF-8"));
+                    }
+                }
+            }catch(ExternalAuthenticationException e) {
+                LOG.debug("Could not set extra parameters for the request. Extra request parameters will not be available to oxAuth",e);
+            }
+
             
             try {
-                ProfileRequestContext prc = ExternalAuthentication.getProfileRequestContext(convId, request);
-                AuthnRequest authnRequest = (AuthnRequest) prc.getInboundMessageContext().getMessage();
+                ProfileRequestContext profileRequestContext = ExternalAuthentication.getProfileRequestContext(convId, request);
+                AuthnRequest authnRequest = (AuthnRequest) profileRequestContext.getInboundMessageContext().getMessage();
                 if (authnRequest != null) {
                     RequestedAuthnContext authnContext = authnRequest.getRequestedAuthnContext();
                     Issuer issuer = authnRequest.getIssuer();
                     if (issuer != null) {
                     	customParameters.put(OXAUTH_PARAM_ISSUER_ID, issuer.getValue());
                     }
-                    if (null != authnContext) {
-                        String acrs = authnContext.getAuthnContextClassRefs().stream()
-                            .map(AuthnContextClassRef::getAuthnContextClassRef).collect(Collectors.joining(" "));
+                    String acrs = null;
+                    if (authnContext == null) {
+                        Function<ProfileRequestContext, RelyingPartyContext> authenticationContextLookupStrategy = new ChildContextLookup<>(RelyingPartyContext.class);
+                        final RelyingPartyContext relyingPartyContext = authenticationContextLookupStrategy.apply(profileRequestContext);
+                        if (relyingPartyContext != null) {
+                        	ProfileConfiguration profileConfiguration = relyingPartyContext.getProfileConfig();
+                        	if (profileConfiguration instanceof BrowserSSOProfileConfiguration) {
+                        		List<Principal> principals = ((BrowserSSOProfileConfiguration) profileConfiguration).getDefaultAuthenticationMethods(profileRequestContext);
+                                acrs = principals.stream()
+                                        .map(Principal::getName).collect(Collectors.joining(" "));
+                        	}
+                        }
+                    } else {
+                        acrs = authnContext.getAuthnContextClassRefs().stream()
+                                .map(AuthnContextClassRef::getAuthnContextClassRef).collect(Collectors.joining(" "));
+                    }
+                    
+                    if (StringHelper.isNotEmpty(acrs)) {
                         customParameters.put("acr_values", acrs);
+
+                        Function<ProfileRequestContext, AuthenticationContext> authenticationContextLookupStrategy = new ChildContextLookup<>(AuthenticationContext.class);
+                        final AuthenticationContext authenticationContext = authenticationContextLookupStrategy.apply(profileRequestContext);
+                        if (authenticationContext != null) {
+                        	authenticationContext.getAuthenticationStateMap().put(OXAUTH_ACR_REQUESTED, acrs);
+    	                    LOG.debug("Requested ACR method: {}", acrs);
+                        }
                     }
                 }
             } catch (Exception e) {
@@ -328,9 +417,12 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
         }
     }
 
-	private TranslateAttributesContext buildContext(HttpServletRequest request, HttpServletResponse response, UserProfile userProfile, String authenticationKey) {
-		TranslateAttributesContext translateAttributesContext = new TranslateAttributesContext(request, response, userProfile, authenticationKey);
+	private TranslateAttributesContext buildContext(HttpServletRequest request, HttpServletResponse response, UserProfile userProfile, 
+                                                    String authenticationKey, List<IdPAttribute> idpAttributes) {
 
+		TranslateAttributesContext translateAttributesContext = new TranslateAttributesContext(request, response, 
+                userProfile, authenticationKey, idpAttributes);
+        translateAttributesContext.setGluuAttributeMappingService(gluuAttributeMappingService);
 		return translateAttributesContext;
 	}
 
