@@ -61,7 +61,7 @@ public class GluuReleaseAttributesPostProcessor extends AbstractProfileAction {
 		// Execute default flow first
 		LOG.info("Executing external IDP script");
 		super.doExecute(profileRequestContext);
-
+		
 		AttributeContext attrCtx = getAttributeContext(profileRequestContext);
 		if(attrCtx == null) {
 			LOG.debug("No attribute context found. No attribute to release");
