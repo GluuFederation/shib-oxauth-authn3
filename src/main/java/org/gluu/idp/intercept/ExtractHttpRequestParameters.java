@@ -13,7 +13,7 @@ import net.shibboleth.idp.profile.AbstractProfileAction;
 
 public class ExtractHttpRequestParameters extends AbstractProfileAction {
     
-    private static final String [] parameterBlackList = {"SAMLRequest", "Signature","RelayState","SigAlg"};
+    private static final String [] parameterBlackList = {"SAMLRequest", "Signature","RelayState","SigAlg","execution"};
 
     private final Logger LOG = LoggerFactory.getLogger(ExtractHttpRequestParameters.class);
 
@@ -39,14 +39,18 @@ public class ExtractHttpRequestParameters extends AbstractProfileAction {
             return;
         }
 
+        LOG.debug("Begin http request extraction");
         GluuScratchContext scratchcontext = profileRequestContext.getSubcontext(GluuScratchContext.class,true);
         Enumeration<String> paramnames = httpRequest.getParameterNames();
         for(;paramnames.hasMoreElements();) {
             String paramname = paramnames.nextElement();
+            LOG.debug("Found http parameter {}",paramname);
             if(!isBlacklistedParameter(paramname)) {
                 scratchcontext.addExtraHttpParameter(paramname,httpRequest.getParameter(paramname));
+                LOG.debug("Http parameter added {}:{}",paramname,httpRequest.getParameter(paramname));
             }
         }
+        LOG.debug("End http request extraction");
     }
 
     private boolean isBlacklistedParameter(String paramname) {
