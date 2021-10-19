@@ -220,7 +220,7 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
 	                    LOG.debug("ACR method is undefined");
                 	} else {
                 		authenticationContext.getAuthenticationStateMap().put(OXAUTH_ACR_USED, usedAcr);
-	                    LOG.debug("Used ACR method: {}", userProfile);
+	                    LOG.debug("Used ACR method: {}", usedAcr);
                 	}
                 }
             }
