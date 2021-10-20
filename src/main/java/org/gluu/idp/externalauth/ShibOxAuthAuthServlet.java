@@ -195,34 +195,47 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
                 LOG.error("Token validation failed, returning InvalidToken");
                 request.setAttribute(ExternalAuthentication.AUTHENTICATION_ERROR_KEY, "InvalidToken");
             } else {
-        		// Return if script(s) not exists or invalid
-            	boolean result = false;
-        		if (this.externalScriptService.isEnabled()) {
-        			TranslateAttributesContext translateAttributesContext = buildContext(request, response, userProfile, authenticationKey);
-        			result = this.externalScriptService.executeExternalTranslateAttributesMethod(translateAttributesContext);
-        		}
-        		
-        		if (!result) {
-        			LOG.trace("Using default translate attributes method");
-
-        			for (final OxAuthToShibTranslator translator : translators) {
-                        translator.doTranslation(request, response, userProfile, authenticationKey);
-                    }
-        		}
-
+            	// Get IDP contexts
                 ProfileRequestContext profileRequestContext = ExternalAuthentication.getProfileRequestContext(authenticationKey, request);
-
         		Function<ProfileRequestContext, AuthenticationContext> authenticationContextLookupStrategy = new ChildContextLookup<>(AuthenticationContext.class);
                 final AuthenticationContext authenticationContext = authenticationContextLookupStrategy.apply(profileRequestContext);
-                if (authenticationContext != null) {
-                	String usedAcr = userProfile.getUsedAcr();
-                	if (StringHelper.isEmpty(usedAcr)) {
-	                    LOG.debug("ACR method is undefined");
-                	} else {
-                		authenticationContext.getAuthenticationStateMap().put(OXAUTH_ACR_USED, usedAcr);
-	                    LOG.debug("Used ACR method: {}", usedAcr);
-                	}
-                }
+
+                boolean postAuthResult = true;
+        		if (this.externalScriptService.isEnabled()) {
+        			PostAuthenticationContext postAuthenticationContext = buildContext(request, response, profileRequestContext, authenticationContext, userProfile, authenticationKey);
+        			postAuthResult =  this.externalScriptService.executePostAuthenticationMethod(postAuthenticationContext);
+            		if (!postAuthResult) {
+            			LOG.error("Post authentication scripts returns false");
+                        request.setAttribute(ExternalAuthentication.AUTHENTICATION_ERROR_KEY, "InvalidToken");
+            		}
+        		}
+
+        		if (postAuthResult) {
+	                // Return if script(s) not exists or invalid
+	            	boolean result = false;
+	        		if (this.externalScriptService.isEnabled()) {
+	        			TranslateAttributesContext translateAttributesContext = buildContext(request, response, userProfile, authenticationKey);
+	        			result = this.externalScriptService.executeExternalTranslateAttributesMethod(translateAttributesContext);
+	        		}
+	        		
+	        		if (!result) {
+	        			LOG.trace("Using default translate attributes method");
+	
+	        			for (final OxAuthToShibTranslator translator : translators) {
+	                        translator.doTranslation(request, response, userProfile, authenticationKey);
+	                    }
+	        		}
+	
+	        		if (authenticationContext != null) {
+	                	String usedAcr = userProfile.getUsedAcr();
+	                	if (StringHelper.isEmpty(usedAcr)) {
+		                    LOG.debug("ACR method is undefined");
+	                	} else {
+	                		authenticationContext.getAuthenticationStateMap().put(OXAUTH_ACR_USED, usedAcr);
+		                    LOG.debug("Used ACR method: {}", usedAcr);
+	                	}
+	                }
+        		}
             }
         } catch (final Exception ex) {
             LOG.error("Token validation failed, returning InvalidToken", ex);
@@ -232,7 +245,7 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
         }
     }
 
-    protected void startLoginRequest(final HttpServletRequest request, final HttpServletResponse response, final Boolean force) {
+	protected void startLoginRequest(final HttpServletRequest request, final HttpServletResponse response, final Boolean force) {
         try {
             // Web context
             final WebContext context = new J2EContext(request, response);
@@ -378,6 +391,16 @@ public class ShibOxAuthAuthServlet extends HttpServlet {
 		TranslateAttributesContext translateAttributesContext = new TranslateAttributesContext(request, response, userProfile, authenticationKey);
 
 		return translateAttributesContext;
+	}
+
+    private PostAuthenticationContext buildContext(HttpServletRequest request, HttpServletResponse response,
+			ProfileRequestContext profileRequestContext, AuthenticationContext authenticationContext,
+			UserProfile userProfile, String authenticationKey) {
+    	
+    	PostAuthenticationContext postAuthenticationContext = new PostAuthenticationContext(request, response,
+    			profileRequestContext, authenticationContext, userProfile, authenticationKey);
+
+    	return postAuthenticationContext;
 	}
 
 }
