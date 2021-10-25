@@ -29,7 +29,7 @@ public class TranslateAttributesContext implements Serializable {
 	private final UserProfile userProfile;
 	private final String authenticationKey;
 	private final List<IdPAttribute> idpAttributes;
-	private final GluuAttributeMappingService gluuAttributeMappingService;
+	private GluuAttributeMappingService gluuAttributeMappingService;
 
 	public TranslateAttributesContext(HttpServletRequest request, HttpServletResponse response, UserProfile userProfile,
 			String authenticationKey, List<IdPAttribute> idpAttributes) {
